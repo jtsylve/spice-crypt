@@ -1,7 +1,3 @@
-.. SPDX-FileCopyrightText: © 2026 Joe T. Sylve, Ph.D. <joe.sylve@gmail.com>
-..
-.. SPDX-License-Identifier: CC-BY-4.0
-
 # LTspice® Encryption Specification
 
 **Version**: 1.0.0
@@ -316,3 +312,9 @@ From a cryptographic perspective, this scheme has several notable properties:
 ---
 
 LTspice® is a registered trademark of Analog Devices, Inc.
+
+## License
+
+Copyright © 2026 Joe T. Sylve, Ph.D. <joe.sylve@gmail.com>
+
+This document is licensed under the [Creative Commons Attribution 4.0 International License](https://creativecommons.org/licenses/by/4.0/) (CC-BY-4.0). You are free to share and adapt this material for any purpose, including commercial use, provided appropriate credit is given.
