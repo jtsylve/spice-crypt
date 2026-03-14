@@ -1,7 +1,7 @@
 # LTspice® Encryption Specification
 
-**Version**: 1.0.0
-**Author**: Joe T. Sylve, Ph.D. <joe.sylve@gmail.com>
+**Version**: 1.0.0 \
+**Author**: Joe T. Sylve, Ph.D. \<joe.sylve@gmail.com\> \
 **Repository**: https://github.com/jtsylve/spice-crypt
 
 This document describes the encryption scheme used by LTspice to protect proprietary circuit model files (`.CIR` / `.SUB`). The scheme is built on a modified variant of the Data Encryption Standard (DES), combined with a pre-DES stream cipher layer and a custom key derivation process. Each deviation from standard DES is explicitly noted.
@@ -19,8 +19,8 @@ This specification is published in service of two goals:
 
 Both activities are specifically permitted by law:
 
-- **United States** -- [17 U.S.C. § 1201(f)](https://www.law.cornell.edu/uscode/text/17/1201) permits circumvention of technological protection measures for the purpose of achieving interoperability between independently created programs, and Section 1201(f)(2) explicitly allows distributing the tools developed for this purpose. [§ 1201(g)](https://www.law.cornell.edu/uscode/text/17/1201) further permits circumvention conducted in good-faith encryption research and allows dissemination of the findings.
-- **European Union** -- [Article 6 of the Software Directive (2009/24/EC)](https://eur-lex.europa.eu/eli/dir/2009/24/oj) permits decompilation and reverse engineering when indispensable to achieve interoperability with independently created programs. Article 6(3) provides that this right cannot be overridden by contract.
+- **United States**: [17 U.S.C. § 1201(f)](https://www.law.cornell.edu/uscode/text/17/1201) permits circumvention of technological protection measures for the purpose of achieving interoperability between independently created programs, and Section 1201(f)(2) explicitly allows distributing the tools developed for this purpose. [§ 1201(g)](https://www.law.cornell.edu/uscode/text/17/1201) further permits circumvention conducted in good-faith encryption research and allows dissemination of the findings.
+- **European Union**: [Article 6 of the Software Directive (2009/24/EC)](https://eur-lex.europa.eu/eli/dir/2009/24/oj) permits decompilation and reverse engineering when indispensable to achieve interoperability with independently created programs. Article 6(3) provides that this right cannot be overridden by contract.
 
 ## 1. Encrypted File Format
 
