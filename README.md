@@ -115,6 +115,15 @@ SpiceCrypt supports standard LTSpice encrypted files which have this structure:
 
 The first 128 eight-byte blocks (1024 bytes) form the crypto table. All subsequent blocks are ciphertext. The two integers on the `End` line are CRC-based checksums used to verify decryption integrity.
 
+## Purpose and Legal Basis
+
+Many third-party component vendors distribute SPICE models exclusively as LTSpice-encrypted files. This encryption locks the models to a single simulator, preventing their use in open-source and alternative tools such as [NGSpice](https://ngspice.sourceforge.io/), [Xyce](https://xyce.sandia.gov/), [PySpice](https://github.com/PySpice-org/PySpice), and others. SpiceCrypt exists to restore interoperability by allowing engineers to use lawfully obtained models in the simulator of their choice.
+
+This type of reverse engineering for interoperability is specifically permitted by law:
+
+- **United States** -- [17 U.S.C. § 1201(f)](https://www.law.cornell.edu/uscode/text/17/1201) permits circumvention of technological protection measures for the sole purpose of achieving interoperability between independently created programs. Section 1201(f)(2) explicitly allows distributing the tools developed for this purpose to others seeking interoperability. Additionally, [§ 1201(g)](https://www.law.cornell.edu/uscode/text/17/1201) permits circumvention when conducted in good-faith encryption research — studying the flaws and vulnerabilities of encryption technologies — and allows dissemination of the research findings.
+- **European Union** -- [Article 6 of the Software Directive (2009/24/EC)](https://eur-lex.europa.eu/eli/dir/2009/24/oj) permits decompilation and reverse engineering when it is indispensable to achieve interoperability with independently created programs. Article 6(3) provides that this right cannot be overridden by contract.
+
 ## License
 
 This project is licensed under the [GNU Affero General Public License v3.0 or later](LICENSES/AGPL-3.0-or-later.txt).
