@@ -65,10 +65,10 @@ print(plaintext)
 ```
 
 **Parameters:**
-- `data` (str) -- Encrypted data as a string (LTspice format or raw hex).
-- `is_ltspice_file` (bool, optional) -- Whether the data is in LTspice format. Auto-detected if `None`.
+- `data` (str): Encrypted data as a string (LTspice format or raw hex).
+- `is_ltspice_file` (bool, optional): Whether the data is in LTspice format. Auto-detected if `None`.
 
-**Returns:** `(plaintext, (v1, v2))` -- The decrypted text and a tuple of CRC-based verification values.
+**Returns:** `(plaintext, (v1, v2))`: The decrypted text and a tuple of CRC-based verification values.
 
 ### `decrypt_stream(input_file, output_file=None, is_ltspice_file=None)`
 
@@ -89,11 +89,11 @@ with open("encrypted.CIR") as infile:
 ```
 
 **Parameters:**
-- `input_file` -- File path (str/PathLike) or text-mode file object.
-- `output_file` (optional) -- File path (str) or binary-mode file object. If `None`, returns decrypted content as a string.
-- `is_ltspice_file` (bool, optional) -- Whether the input is in LTspice format. Auto-detected if `None`.
+- `input_file`: File path (str/PathLike) or text-mode file object.
+- `output_file` (optional): File path (str) or binary-mode file object. If `None`, returns decrypted content as a string.
+- `is_ltspice_file` (bool, optional): Whether the input is in LTspice format. Auto-detected if `None`.
 
-**Returns:** `(content, (v1, v2))` -- `content` is the decrypted string if no output file was given, otherwise `None`. `(v1, v2)` are CRC-based verification values that should match the checksums in the file's `End` line.
+**Returns:** `(content, (v1, v2))`: `content` is the decrypted string if no output file was given, otherwise `None`. `(v1, v2)` are CRC-based verification values that should match the checksums in the file's `End` line.
 
 ## File Format
 
@@ -123,7 +123,7 @@ The first 128 eight-byte blocks (1024 bytes) form the crypto table. All subseque
 
 ## Specification
 
-For a detailed technical description of the encryption scheme -- including the full key derivation process, pre-DES stream cipher layer, all deviations from standard DES, and the integrity verification mechanism -- see [SPECIFICATION.md](SPECIFICATION.md).
+For a detailed technical description of the encryption scheme -- including the full key derivation process, pre-DES stream cipher layer, all deviations from standard DES, and the integrity verification mechanism: see [SPECIFICATION.md](SPECIFICATION.md).
 
 ## Purpose and Legal Basis
 
@@ -131,8 +131,8 @@ Many third-party component vendors distribute SPICE models exclusively as LTspic
 
 This type of reverse engineering for interoperability is specifically permitted by law:
 
-- **United States** -- [17 U.S.C. § 1201(f)](https://www.law.cornell.edu/uscode/text/17/1201) permits circumvention of technological protection measures for the sole purpose of achieving interoperability between independently created programs. Section 1201(f)(2) explicitly allows distributing the tools developed for this purpose to others seeking interoperability. Additionally, [§ 1201(g)](https://www.law.cornell.edu/uscode/text/17/1201) permits circumvention when conducted in good-faith encryption research — studying the flaws and vulnerabilities of encryption technologies — and allows dissemination of the research findings.
-- **European Union** -- [Article 6 of the Software Directive (2009/24/EC)](https://eur-lex.europa.eu/eli/dir/2009/24/oj) permits decompilation and reverse engineering when it is indispensable to achieve interoperability with independently created programs. Article 6(3) provides that this right cannot be overridden by contract.
+- **United States**: [17 U.S.C. § 1201(f)](https://www.law.cornell.edu/uscode/text/17/1201) permits circumvention of technological protection measures for the sole purpose of achieving interoperability between independently created programs. Section 1201(f)(2) explicitly allows distributing the tools developed for this purpose to others seeking interoperability. Additionally, [§ 1201(g)](https://www.law.cornell.edu/uscode/text/17/1201) permits circumvention when conducted in good-faith encryption research — studying the flaws and vulnerabilities of encryption technologies — and allows dissemination of the research findings.
+- **European Union**: [Article 6 of the Software Directive (2009/24/EC)](https://eur-lex.europa.eu/eli/dir/2009/24/oj) permits decompilation and reverse engineering when it is indispensable to achieve interoperability with independently created programs. Article 6(3) provides that this right cannot be overridden by contract.
 
 ## Trademarks
 
