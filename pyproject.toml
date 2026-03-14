@@ -1,0 +1,38 @@
+# SPDX-FileCopyrightText: © 2025 Bayou Bits Technologies, LLC
+# SPDX-FileCopyrightText: © 2025 Joe T. Sylve, Ph.D. <joe.sylve@gmail.com>
+# SPDX-License-Identifier: LicenseRef-Proprietary
+
+[project]
+name = "spice-crypt"
+version = "1.0.0"
+description = "A library for decrypting LTSpice encrypted files"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "LicenseRef-Proprietary" }
+authors = [
+    { name = "Joe T. Sylve, Ph.D.", email = "joe.sylve@gmail.com" },
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+
+[project.scripts]
+spice-decrypt = "spice_crypt.cli:main"
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.5.0",
+    "ruff>=0.15.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "UP", "B", "SIM", "TCH", "RUF"]
+ignore = ["RUF012"]

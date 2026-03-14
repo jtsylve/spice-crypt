@@ -10,6 +10,7 @@
 # Authorized representatives of the licensed recipient may request a copy of
 # the written license agreement via email at joe.sylve@gmail.com.
 
+
 def _build_permutation_lut(table):
     """
     Precompute a byte-chunked lookup table for a bit permutation.
@@ -38,9 +39,8 @@ def _build_permutation_lut(table):
         for byte_val in range(256):
             contribution = 0
             for out_bit, in_bit in enumerate(table):
-                if bit_base <= in_bit < bit_base + 8:
-                    if (byte_val >> (in_bit - bit_base)) & 1:
-                        contribution |= 1 << out_bit
+                if bit_base <= in_bit < bit_base + 8 and (byte_val >> (in_bit - bit_base)) & 1:
+                    contribution |= 1 << out_bit
             sub[byte_val] = contribution
         lut.append(sub)
     return lut
@@ -80,10 +80,12 @@ def _build_sbox_direct_lut(sbox_table, bit_transform):
             # Row index from bits 5 and 0
             row = ((six_bits & 0x20) >> 5) | ((six_bits & 0x01) << 1)
             # Column index from bits 4, 3, 2, 1
-            column = ((six_bits & 0x02) << 2 |
-                      (six_bits & 0x04) |
-                      (six_bits & 0x08) >> 2 |
-                      (six_bits & 0x10) >> 4)
+            column = (
+                (six_bits & 0x02) << 2
+                | (six_bits & 0x04)
+                | (six_bits & 0x08) >> 2
+                | (six_bits & 0x10) >> 4
+            )
             sbox_offset = (36 * column) + (9 * row) + i + 1
             t[six_bits] = bit_transform[sbox_table[sbox_offset]]
         tables.append(t)
@@ -98,6 +100,7 @@ class LTSpiceDES:
     This is a variant of DES with several differences from the standard algorithm.
     """
 
+    # fmt: off
     # S-boxes (8 boxes, each mapping 6 bits to 4 bits)
     DES_SBOX_TABLE = [
         # Padding for 1-based indexing                      #
@@ -236,6 +239,7 @@ class LTSpiceDES:
         0x21, 0x01, 0x29, 0x09, 0x31, 0x11, 0x39, 0x19,
         0x20, 0x00, 0x28, 0x08, 0x30, 0x10, 0x38, 0x18,
     ]
+    # fmt: on
 
     # Rotation table for key schedule
     ROTATION_TABLE = [1, 1, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 1]
@@ -256,8 +260,8 @@ class LTSpiceDES:
     _SBOX_DIRECT = _build_sbox_direct_lut(DES_SBOX_TABLE, DES_BIT_TRANSFORM)
 
     def __init__(self):
-        """Initialize the LTSpiceDES cipher with empty subkeys."""
-        self.subkeys = [0] * 16
+        """Initialize the LTSpiceDES cipher."""
+        self.subkeys = None
         self.initialized_key = None
 
     @staticmethod
@@ -276,13 +280,10 @@ class LTSpiceDES:
         lower = value & 0xFFFFFFF
         upper = (value >> 28) & 0xFFFFFFF
 
-        # Calculate shift amounts
-        right_shift = count
-        left_shift = 28 - count
-
         # Perform rotation on both segments
-        lower = ((lower >> right_shift) | (lower << left_shift)) & 0xFFFFFFF
-        upper = ((upper >> right_shift) | (upper << left_shift)) & 0xFFFFFFF
+        complement = 28 - count
+        lower = ((lower >> count) | (lower << complement)) & 0xFFFFFFF
+        upper = ((upper >> count) | (upper << complement)) & 0xFFFFFFF
 
         # Combine results
         return lower | (upper << 28)
@@ -295,12 +296,14 @@ class LTSpiceDES:
         reduced_key = _apply_permutation(self._swap_halves(key), self._PC1_LUT)
 
         # Generate all 16 round keys
+        subkeys = []
         for round_num in range(16):
             # Rotate the reduced key material right by the specified amount
             reduced_key = self.rotate_reduced_keys(reduced_key, self.ROTATION_TABLE[round_num])
 
             # Reduce the 56-bit key material to 48 bits using PC-2
-            self.subkeys[round_num] = _apply_permutation(reduced_key, self._PC2_LUT)
+            subkeys.append(_apply_permutation(reduced_key, self._PC2_LUT))
+        self.subkeys = subkeys
 
     def feistel_function(self, right_half, round_key):
         """
@@ -366,7 +369,8 @@ class LTSpiceDES:
             # Apply the Feistel function to the right half with the round
             # key, XOR the result with the left half, then swap the halves
             # for the next round
-            left_half, right_half = right_half, self.feistel_function(right_half, subkeys[key_idx]) ^ left_half
+            f_result = self.feistel_function(right_half, subkeys[key_idx])
+            left_half, right_half = right_half, f_result ^ left_half
 
         # Apply the final permutation (IP^-1) to the combined halves.
         # The halves are combined with left in the upper 32 bits and right
@@ -375,4 +379,3 @@ class LTSpiceDES:
         # returned, as the LTSpice variant discards the high bits.
         combined = (left_half << 32) | right_half
         return _apply_permutation(combined, self._FINAL_PERM_LUT) & 0xFFFFFFFF
-

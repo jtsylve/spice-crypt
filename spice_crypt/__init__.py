@@ -14,10 +14,10 @@
 SpiceCrypt - A library for decrypting LTSpice encrypted files
 """
 
-__version__ = '0.1.0'
+__version__ = "1.0.0"
 
-from spice_crypt.des import LTSpiceDES
 from spice_crypt.crypto_state import CryptoState
-from spice_crypt.decrypt import decrypt, decrypt_stream, LTSpiceFileParser
+from spice_crypt.decrypt import LTSpiceFileParser, decrypt, decrypt_stream
+from spice_crypt.des import LTSpiceDES
 
-__all__ = ['LTSpiceDES', 'CryptoState', 'decrypt', 'decrypt_stream', 'LTSpiceFileParser']
+__all__ = ["CryptoState", "LTSpiceDES", "LTSpiceFileParser", "decrypt", "decrypt_stream"]

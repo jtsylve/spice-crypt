@@ -12,21 +12,24 @@
 
 import binascii
 import contextlib
-import re
 import io
 import os
+import re
 import warnings
-from typing import Tuple, Optional, Generator
+from collections.abc import Generator
+
 from spice_crypt.crypto_state import CryptoState
+
+_END_CHECKSUM_RE = re.compile(r"\*\s*End\s+(\d+)\s+(\d+)", re.IGNORECASE)
 
 
 class LTSpiceFileParser:
     """Parser for LTSpice encrypted files with efficient streaming support."""
-    
+
     def __init__(self, file_obj, raw_mode=False):
         """
         Initialize the parser with a file object.
-        
+
         Args:
             file_obj: File-like object (text mode) or path to file
             raw_mode: Whether to treat the input as raw hex data
@@ -36,30 +39,24 @@ class LTSpiceFileParser:
         self.checksums = None
         self._crypto_table = None
         self._crypto_state = None
-    
+
     def _read_until_begin(self):
         """Read the file until the 'Begin:' marker is found."""
         if self.raw_mode:
             return
-        
+
         for line in self.file_obj:
             line = line.strip()
-            if line.lower().startswith('* begin:'):
+            if line.lower().startswith("* begin:"):
                 return
-    
+
     def _extract_checksums(self, line):
         """Extract checksums from an End line."""
-        end_pattern = r'\*\s*End\s+(\d+)\s+(\d+)'
-        end_match = re.search(end_pattern, line, re.IGNORECASE)
-        
+        end_match = _END_CHECKSUM_RE.search(line)
+
         if end_match:
-            try:
-                checksum1 = int(end_match.group(1))
-                checksum2 = int(end_match.group(2))
-                self.checksums = (checksum1, checksum2)
-            except ValueError:
-                pass
-    
+            self.checksums = (int(end_match.group(1)), int(end_match.group(2)))
+
     @staticmethod
     def _convert_hex_block(hex_values):
         """Convert a list of hex strings to a bytes block.
@@ -68,9 +65,9 @@ class LTSpiceFileParser:
         right to 8 bytes.
         """
         if len(hex_values) < 8:
-            hex_values = hex_values + ['00'] * (8 - len(hex_values))
+            hex_values = hex_values + ["00"] * (8 - len(hex_values))
         try:
-            return bytes(int(h, 16) for h in hex_values)
+            return bytes.fromhex("".join(hex_values))
         except ValueError as e:
             raise ValueError(f"Invalid hex data: {' '.join(hex_values)}") from e
 
@@ -82,12 +79,12 @@ class LTSpiceFileParser:
             line = line.strip()
 
             # Check if we've reached the end marker
-            if not self.raw_mode and line.lower().startswith('* end'):
+            if not self.raw_mode and line.lower().startswith("* end"):
                 self._extract_checksums(line)
                 break
 
             # Skip comments in LTSpice format
-            if not self.raw_mode and line.startswith('*'):
+            if not self.raw_mode and line.startswith("*"):
                 continue
 
             hex_data.extend(line.split())
@@ -95,24 +92,23 @@ class LTSpiceFileParser:
             # Yield complete 8-value blocks as soon as they are available
             while len(hex_data) >= 8:
                 yield self._convert_hex_block(hex_data[:8])
-                hex_data = hex_data[8:]
+                del hex_data[:8]
 
         # Yield any remaining partial block (zero-padded)
         if hex_data:
             yield self._convert_hex_block(hex_data)
-    
-    def decrypt_stream(self) -> Generator[bytes, None, Tuple[int, int]]:
+
+    def decrypt_stream(self) -> Generator[bytes, None, tuple[int, int]]:
         """
         Stream decrypt the file, yielding decrypted chunks.
-        
+
         Returns:
             Generator that yields decrypted chunks
             The final value is the verification tuple (v1, v2)
         """
         # Start processing the file
-        if not self.raw_mode:
-            self._read_until_begin()
-        
+        self._read_until_begin()
+
         block_count = 0
         table_bytes = bytearray(1024)
         plaintext_crc = 0
@@ -122,7 +118,7 @@ class LTSpiceFileParser:
         for byte_block in self._process_hex_chunks():
             # First 1024 bytes (128 blocks) are the crypto table
             if block_count < 128:
-                table_bytes[block_count*8:(block_count+1)*8] = byte_block
+                table_bytes[block_count * 8 : (block_count + 1) * 8] = byte_block
                 block_count += 1
 
                 # Once we have the complete table, initialize the crypto state
@@ -137,7 +133,7 @@ class LTSpiceFileParser:
                 result = self._crypto_state.decrypt_block(byte_block)
 
                 # Convert result to bytes
-                result_bytes = result.to_bytes(4, 'little')
+                result_bytes = result.to_bytes(4, "little")
 
                 # Update plaintext CRC
                 plaintext_crc = binascii.crc32(result_bytes, plaintext_crc)
@@ -147,8 +143,10 @@ class LTSpiceFileParser:
 
         # Calculate verification values
         if self._crypto_table:
-            v1 = plaintext_crc ^ 0x7a6d2c3a ^ int.from_bytes(self._crypto_table[0x44:0x48], byteorder='little')
-            v2 = ciphertext_crc ^ 0x4da77fd3 ^ int.from_bytes(self._crypto_table[0x94:0x98], byteorder='little')
+            table_word_44 = int.from_bytes(self._crypto_table[0x44:0x48], byteorder="little")
+            table_word_94 = int.from_bytes(self._crypto_table[0x94:0x98], byteorder="little")
+            v1 = plaintext_crc ^ 0x7A6D2C3A ^ table_word_44
+            v2 = ciphertext_crc ^ 0x4DA77FD3 ^ table_word_94
 
             # Check against file checksums if available
             if self.checksums and (v1, v2) != self.checksums:
@@ -171,10 +169,12 @@ def _detect_ltspice_format(file_obj) -> bool:
     """
     first_line = file_obj.readline()
     file_obj.seek(0)
-    return '* LTspice Encrypted File' in first_line or '* Begin:' in first_line
+    return "* LTspice Encrypted File" in first_line or "* Begin:" in first_line
 
 
-def decrypt_stream(input_file, output_file=None, is_ltspice_file=None) -> Tuple[Optional[str], Tuple[int, int]]:
+def decrypt_stream(
+    input_file, output_file=None, is_ltspice_file=None
+) -> tuple[str | None, tuple[int, int]]:
     """
     Stream decrypt data from input_file to output_file.
 
@@ -191,8 +191,8 @@ def decrypt_stream(input_file, output_file=None, is_ltspice_file=None) -> Tuple[
     """
     with contextlib.ExitStack() as stack:
         # Handle different input types
-        if isinstance(input_file, (str, os.PathLike)):
-            input_file = stack.enter_context(open(input_file, 'r'))
+        if isinstance(input_file, str | os.PathLike):
+            input_file = stack.enter_context(open(input_file))
 
         # Auto-detect if file is in LTSpice format if not specified
         if is_ltspice_file is None:
@@ -206,7 +206,7 @@ def decrypt_stream(input_file, output_file=None, is_ltspice_file=None) -> Tuple[
         if return_string:
             buffer = stack.enter_context(io.StringIO())
         elif isinstance(output_file, str):
-            output_file = stack.enter_context(open(output_file, 'wb'))
+            output_file = stack.enter_context(open(output_file, "wb"))
 
         # Stream decrypt -- the generator's return value holds
         # the verification tuple, which must be captured via
@@ -216,7 +216,7 @@ def decrypt_stream(input_file, output_file=None, is_ltspice_file=None) -> Tuple[
             while True:
                 chunk = next(gen)
                 if return_string:
-                    buffer.write(chunk.decode('utf-8', errors='replace'))
+                    buffer.write(chunk.decode("utf-8", errors="replace"))
                 else:
                     output_file.write(chunk)
         except StopIteration as e:
