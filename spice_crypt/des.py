@@ -10,14 +10,94 @@
 # Authorized representatives of the licensed recipient may request a copy of
 # the written license agreement via email at joe.sylve@gmail.com.
 
+def _build_permutation_lut(table):
+    """
+    Precompute a byte-chunked lookup table for a bit permutation.
+
+    Given a permutation table of length N, this builds a list of
+    (byte_count) 256-entry sub-tables.  To apply the permutation,
+    split the input into 8-bit chunks and OR together the looked-up
+    contributions::
+
+        result = 0
+        for byte_idx, sub in enumerate(lut):
+            result |= sub[(value >> (byte_idx * 8)) & 0xFF]
+
+    This replaces the per-bit loop in _apply_permutation with a per-byte
+    lookup, giving roughly an 8x reduction in Python-level iterations
+    for the hot path.
+    """
+    # Determine how many input bytes we need to cover all referenced bits
+    max_input_bit = max(table) if table else 0
+    input_byte_count = (max_input_bit // 8) + 1
+
+    lut = []
+    for byte_idx in range(input_byte_count):
+        sub = [0] * 256
+        bit_base = byte_idx * 8
+        for byte_val in range(256):
+            contribution = 0
+            for out_bit, in_bit in enumerate(table):
+                if bit_base <= in_bit < bit_base + 8:
+                    if (byte_val >> (in_bit - bit_base)) & 1:
+                        contribution |= 1 << out_bit
+            sub[byte_val] = contribution
+        lut.append(sub)
+    return lut
+
+
+def _apply_permutation(value, lut):
+    """
+    Apply a precomputed byte-chunked permutation LUT to an integer value.
+
+    Each entry in *lut* is a 256-element list covering one input byte.
+    """
+    result = 0
+    for byte_idx, sub in enumerate(lut):
+        result |= sub[(value >> (byte_idx * 8)) & 0xFF]
+    return result
+
+
+def _build_sbox_direct_lut(sbox_table, bit_transform):
+    """
+    Precompute 8 direct S-box lookup tables (64 entries each).
+
+    For each S-box *i* (0..7) and each raw 6-bit input value (0..63),
+    the table stores the 4-bit output with the bit-transform already
+    applied.  This eliminates the per-call row/column extraction and
+    offset arithmetic from feistel_function.
+
+    Each 6-bit input is split into row and column indices:
+      - Row (2 bits): composed of bit 5 (MSB) and bit 0 (LSB)
+      - Column (4 bits): composed of bits 4..1
+    The S-box value is looked up at offset (36*column + 9*row + i + 1)
+    in the flat sbox_table, then passed through the bit_transform.
+    """
+    tables = []
+    for i in range(8):
+        t = [0] * 64
+        for six_bits in range(64):
+            # Row index from bits 5 and 0
+            row = ((six_bits & 0x20) >> 5) | ((six_bits & 0x01) << 1)
+            # Column index from bits 4, 3, 2, 1
+            column = ((six_bits & 0x02) << 2 |
+                      (six_bits & 0x04) |
+                      (six_bits & 0x08) >> 2 |
+                      (six_bits & 0x10) >> 4)
+            sbox_offset = (36 * column) + (9 * row) + i + 1
+            t[six_bits] = bit_transform[sbox_table[sbox_offset]]
+        tables.append(t)
+    return tables
+
+
 class LTSpiceDES:
     """
     LTSPice-DES Variant Implementation
-    
+
     A Python port of the encryption algorithm used in LTSPice.
     This is a variant of DES with several differences from the standard algorithm.
     """
-    
+
     # S-boxes (8 boxes, each mapping 6 bits to 4 bits)
     DES_SBOX_TABLE = [
         # Padding for 1-based indexing                      #
@@ -87,13 +167,13 @@ class LTSpiceDES:
         0x00, 0x00, 0x0F, 0x07, 0x04, 0x0E, 0x06, 0x02, 0x08,
         0x00, 0x0D, 0x09, 0x0C, 0x0E, 0x03, 0x0D, 0x0C, 0x0B,
     ]
-    
+
     # Lookup table for 4-bit values
     DES_BIT_TRANSFORM = [
         0x00, 0x08, 0x04, 0x0C, 0x02, 0x0A, 0x06, 0x0E,
         0x01, 0x09, 0x05, 0x0D, 0x03, 0x0B, 0x07, 0x0F,
     ]
-    
+
     # Permuted Choice 1 (PC-1) table
     DES_PC1_TABLE = [
         0x38, 0x30, 0x28, 0x20, 0x18, 0x10, 0x08, 0x00,
@@ -104,7 +184,7 @@ class LTSpiceDES:
         0x1D, 0x15, 0x0D, 0x05, 0x3C, 0x34, 0x2C, 0x24,
         0x1C, 0x14, 0x0C, 0x04, 0x1B, 0x13, 0x0B, 0x03,
     ]
-    
+
     # Permuted Choice 2 (PC-2) table
     DES_PC2_TABLE = [
         0x0D, 0x10, 0x0A, 0x17, 0x00, 0x04, 0x02, 0x1B,
@@ -114,7 +194,7 @@ class LTSpiceDES:
         0x32, 0x2C, 0x20, 0x2F, 0x2B, 0x30, 0x26, 0x37,
         0x21, 0x34, 0x2D, 0x29, 0x31, 0x23, 0x1C, 0x1F,
     ]
-    
+
     # Expansion function (E) table
     DES_EXPANSION_TABLE = [
         0x1F, 0x00, 0x01, 0x02, 0x03, 0x04, 0x03, 0x04,
@@ -124,7 +204,7 @@ class LTSpiceDES:
         0x15, 0x16, 0x17, 0x18, 0x17, 0x18, 0x19, 0x1A,
         0x1B, 0x1C, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F, 0x00,
     ]
-    
+
     # P-box permutation table
     DES_PBOX_TABLE = [
         0x0F, 0x06, 0x13, 0x14, 0x1C, 0x0B, 0x1B, 0x10,
@@ -132,7 +212,7 @@ class LTSpiceDES:
         0x01, 0x07, 0x17, 0x0D, 0x1F, 0x1A, 0x02, 0x08,
         0x12, 0x0C, 0x1D, 0x05, 0x15, 0x0A, 0x03, 0x18,
     ]
-    
+
     # Initial permutation table (IP)
     DES_INITIAL_PERM = [
         0x39, 0x31, 0x29, 0x21, 0x19, 0x11, 0x09, 0x01,
@@ -144,7 +224,7 @@ class LTSpiceDES:
         0x3C, 0x34, 0x2C, 0x24, 0x1C, 0x14, 0x0C, 0x04,
         0x3E, 0x36, 0x2E, 0x26, 0x1E, 0x16, 0x0E, 0x06,
     ]
-    
+
     # Final permutation table (IP^-1)
     DES_FINAL_PERM = [
         0x27, 0x07, 0x2F, 0x0F, 0x37, 0x17, 0x3F, 0x1F,
@@ -156,223 +236,143 @@ class LTSpiceDES:
         0x21, 0x01, 0x29, 0x09, 0x31, 0x11, 0x39, 0x19,
         0x20, 0x00, 0x28, 0x08, 0x30, 0x10, 0x38, 0x18,
     ]
-    
+
     # Rotation table for key schedule
     ROTATION_TABLE = [1, 1, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 1]
-    
+
+    # Precomputed byte-chunked lookup tables for each permutation table.
+    # Built once at class-definition time; used by the permutation methods
+    # to replace per-bit Python loops with per-byte lookups.
+    _PC1_LUT = _build_permutation_lut(DES_PC1_TABLE)
+    _PC2_LUT = _build_permutation_lut(DES_PC2_TABLE)
+    _EXPANSION_LUT = _build_permutation_lut(DES_EXPANSION_TABLE)
+    _PBOX_LUT = _build_permutation_lut(DES_PBOX_TABLE)
+    _INITIAL_PERM_LUT = _build_permutation_lut(DES_INITIAL_PERM)
+    _FINAL_PERM_LUT = _build_permutation_lut(DES_FINAL_PERM)
+
+    # Precomputed direct S-box lookup tables (8 tables of 64 entries each).
+    # Indexed by the raw 6-bit value, output includes the bit-transform.
+    # Eliminates per-call row/column extraction and offset arithmetic.
+    _SBOX_DIRECT = _build_sbox_direct_lut(DES_SBOX_TABLE, DES_BIT_TRANSFORM)
+
     def __init__(self):
         """Initialize the LTSpiceDES cipher with empty subkeys."""
         self.subkeys = [0] * 16
         self.initialized_key = None
-    
+
     @staticmethod
-    def bit_test(value, bit_index):
-        """Test if a specific bit is set in the value."""
-        return ((value >> bit_index) & 1) != 0
-    
+    def _swap_halves(value):
+        """Swap the lower and upper 32 bits of a 64-bit value."""
+        return (value >> 32) | ((value & 0xFFFFFFFF) << 32)
+
     @staticmethod
-    def get_high_dword(value):
-        """Get the high 32 bits of a 64-bit value."""
-        return (value >> 32) & 0xFFFFFFFF
-    
-    @staticmethod
-    def get_low_dword(value):
-        """Get the low 32 bits of a 64-bit value."""
-        return value & 0xFFFFFFFF
-    
-    def rotate_reduced_keys(self, value, count):
+    def rotate_reduced_keys(value, count):
         """
         Rotate the two 28-bit halves of the key material right by the specified count.
-        
+
         NOTE: This differs from standard DES, which rotates the halves left.
         """
         # Extract the two 28-bit segments
         lower = value & 0xFFFFFFF
         upper = (value >> 28) & 0xFFFFFFF
-        
+
         # Calculate shift amounts
         right_shift = count
         left_shift = 28 - count
-        
+
         # Perform rotation on both segments
         lower = ((lower >> right_shift) | (lower << left_shift)) & 0xFFFFFFF
         upper = ((upper >> right_shift) | (upper << left_shift)) & 0xFFFFFFF
-        
+
         # Combine results
         return lower | (upper << 28)
-    
-    def reduce_pc1(self, key):
-        """
-        Reduce the 64-bit key to 56 bits of key material using the PC-1 table.
-        
-        NOTE: This differs from standard DES by swapping the lower and upper 32 bits.
-        """
-        # Swap the lower and upper 32 bits of the key
-        swapped_key = (key >> 32) | ((key & 0xFFFFFFFF) << 32)
-        
-        reduced_key = 0
-        
-        # Process PC1 permutation
-        for i in range(55, -1, -1):
-            reduced_key = (reduced_key << 1) | (1 if self.bit_test(swapped_key, self.DES_PC1_TABLE[i]) else 0)
-        
-        return reduced_key
-    
-    def reduce_pc2(self, key_material):
-        """Reduce the 56-bit key material to 48 bits using the PC-2 table."""
-        subkey = 0
-        
-        # Apply PC-2 permutation
-        for i in range(47, -1, -1):
-            subkey = (subkey << 1) | (1 if self.bit_test(key_material, self.DES_PC2_TABLE[i]) else 0)
-        
-        return subkey
-    
+
     def generate_key_schedule(self, key):
         """Generate round keys (key schedule) for the algorithm."""
-        # Reduce the key to 56 bits using PC-1
-        reduced_key = self.reduce_pc1(key)
-        
+        # Reduce the key to 56 bits using PC-1.
+        # NOTE: This differs from standard DES by swapping the lower and
+        # upper 32 bits before applying PC-1.
+        reduced_key = _apply_permutation(self._swap_halves(key), self._PC1_LUT)
+
         # Generate all 16 round keys
         for round_num in range(16):
             # Rotate the reduced key material right by the specified amount
             reduced_key = self.rotate_reduced_keys(reduced_key, self.ROTATION_TABLE[round_num])
-            
+
             # Reduce the 56-bit key material to 48 bits using PC-2
-            self.subkeys[round_num] = self.reduce_pc2(reduced_key)
-    
-    def expand_half_block(self, half_block):
-        """Expand a 32-bit half-block to 48 bits using the expansion table."""
-        expanded_half = 0
-        
-        # Expand using the expansion table
-        for i in range(47, -1, -1):
-            expanded_half = (expanded_half << 1) | (1 if self.bit_test(half_block, self.DES_EXPANSION_TABLE[i]) else 0)
-        
-        return expanded_half
-    
-    def permute_pbox(self, sbox_output):
-        """32-bit to 32-bit permutation using the P-box table."""
-        final_perm_result = 0
-        
-        for i in range(31, -1, -1):
-            final_perm_result = (final_perm_result << 1) | (1 if self.bit_test(sbox_output, self.DES_PBOX_TABLE[i]) else 0)
-        
-        return final_perm_result
-    
+            self.subkeys[round_num] = _apply_permutation(reduced_key, self._PC2_LUT)
+
     def feistel_function(self, right_half, round_key):
         """
         Apply the Feistel (F) function for a single round.
-        
+
         1. Expansion of the 32-bit right half to 48 bits
         2. XOR with the round key
         3. S-box substitution (48 bits to 32 bits)
         4. P-box permutation
         """
-        # Expand the right half to 48 bits
-        expanded_half = self.expand_half_block(right_half)
-        
-        # XOR with the round key
-        expanded_half ^= round_key
-        
-        # Extract 8 groups of 6 bits each from the 48-bit XOR result
-        sbox_input = []
-        for i in range(8):
-            sbox_input.append(expanded_half & 0x3F)
-            expanded_half >>= 6
-        
-        # S-box substitution (converts 48 bits to 32 bits)
+        # Step 1-2: Expand the 32-bit right half to 48 bits using the
+        # expansion table, then XOR the result with the 48-bit round key.
+        xor_val = _apply_permutation(right_half, self._EXPANSION_LUT) ^ round_key
+
+        # Step 3: S-box substitution (48 bits -> 32 bits).
+        # The 48-bit XOR result is split into 8 groups of 6 bits.  Each
+        # 6-bit group is fed into a corresponding S-box which produces a
+        # 4-bit output (row from bits 5,0; column from bits 4..1).
+        # The 8 four-bit outputs are concatenated to form a 32-bit value.
+        # Here we use precomputed direct lookup tables that combine the
+        # row/column extraction, S-box lookup, and bit-transform in one step.
+        sbox_direct = self._SBOX_DIRECT
         sbox_output = 0
-        
         for i in range(7, -1, -1):
-            six_bits = sbox_input[i]
-            
-            # Row index is based on bits 0 and 5
-            row = ((six_bits & 0x20) >> 5 | (six_bits & 0x01) << 1)
-            
-            # Column index is based on bits 1, 2, 3, and 4
-            column = ((six_bits & 0x02) << 2 | 
-                      (six_bits & 0x04) << 0 | 
-                      (six_bits & 0x08) >> 2 | 
-                      (six_bits & 0x10) >> 4)
-            
-            sbox_offset = (36 * column) + (9 * row) + i + 1
-            sbox_output = self.DES_BIT_TRANSFORM[self.DES_SBOX_TABLE[sbox_offset]] | (16 * sbox_output)
-        
-        return self.permute_pbox(sbox_output)
-    
-    def permute_initial(self, input_block):
-        """
-        Perform the initial permutation on the input block.
-        
-        Returns: (left_half, right_half) tuple of 32-bit values
-        """
-        # Swap the halves of the input block
-        swapped_input = (input_block >> 32) | ((input_block & 0xFFFFFFFF) << 32)
-        
-        # Apply the initial permutation (IP)
-        permuted_block = 0
-        for i in range(63, -1, -1):
-            permuted_block = (permuted_block << 1) | (1 if self.bit_test(swapped_input, self.DES_INITIAL_PERM[i]) else 0)
-        
-        # Return left and right halves
-        return self.get_low_dword(permuted_block), self.get_high_dword(permuted_block)
-    
-    def permute_final(self, left_half, right_half):
-        """
-        Perform the final permutation on the block.
-        
-        Returns: tuple of (high_dword, low_dword) for 64-bit final output
-        """
-        # Combine left and right halves
-        combined = (left_half << 32) | right_half
-        
-        # Apply final permutation
-        permuted_block = 0
-        for i in range(63, -1, -1):
-            permuted_block = (permuted_block << 1) | (1 if self.bit_test(combined, self.DES_FINAL_PERM[i]) else 0)
-        
-        # Return the high and low parts in swapped order to match C implementation
-        return self.get_high_dword(permuted_block), self.get_low_dword(permuted_block)
-    
+            sbox_output = sbox_direct[i][(xor_val >> (i * 6)) & 0x3F] | (sbox_output << 4)
+
+        # Step 4: P-box permutation on the 32-bit S-box output
+        return _apply_permutation(sbox_output, self._PBOX_LUT)
+
     def crypt(self, input_block, key, decrypt_mode=False):
         """
         Perform DES encryption or decryption on a 64-bit block.
-        
+
         Args:
             input_block: 64-bit input block to encrypt/decrypt
             key: 64-bit key (56 bits used, 8 bits parity)
             decrypt_mode: Flag to indicate operation mode (False=encrypt, True=decrypt)
-        
+
         Returns:
-            64-bit output block
+            32-bit output value (low dword of the DES result)
         """
         # Generate key schedule if key has changed
         if self.initialized_key != key:
             self.generate_key_schedule(key)
             self.initialized_key = key
-        
-        # Perform initial permutation
-        left_half, right_half = self.permute_initial(input_block)
-        
+
+        # Perform initial permutation (IP).
+        # NOTE: This differs from standard DES by swapping the lower and
+        # upper 32-bit halves of the input block before applying IP.
+        permuted = _apply_permutation(self._swap_halves(input_block), self._INITIAL_PERM_LUT)
+
+        # Split the 64-bit permuted block into two 32-bit halves
+        left_half = permuted & 0xFFFFFFFF
+        right_half = (permuted >> 32) & 0xFFFFFFFF
+
         # Main DES rounds (16 rounds)
+        subkeys = self.subkeys
         for round_num in range(16):
-            # Select the appropriate round key based on mode
+            # Select the appropriate round key based on mode:
+            # decryption uses the subkeys in reverse order
             key_idx = 15 - round_num if decrypt_mode else round_num
-            
-            # Get the round key for this iteration
-            round_key = self.subkeys[key_idx]
-            
-            # Apply the Feistel function and calculate new right half
-            feistel_result = self.feistel_function(right_half, round_key)
-            
-            # XOR with left half and swap halves for next round
-            current_right = right_half
-            right_half = feistel_result ^ left_half
-            left_half = current_right
-        
-        # Final permutation
-        high, low = self.permute_final(left_half, right_half)
-        
-        # Combine the 32-bit parts in correct order to match C implementation
-        return low
+
+            # Apply the Feistel function to the right half with the round
+            # key, XOR the result with the left half, then swap the halves
+            # for the next round
+            left_half, right_half = right_half, self.feistel_function(right_half, subkeys[key_idx]) ^ left_half
+
+        # Apply the final permutation (IP^-1) to the combined halves.
+        # The halves are combined with left in the upper 32 bits and right
+        # in the lower 32 bits (note: no swap after the last round, matching
+        # standard DES).  Only the low 32-bit dword of the result is
+        # returned, as the LTSpice variant discards the high bits.
+        combined = (left_half << 32) | right_half
+        return _apply_permutation(combined, self._FINAL_PERM_LUT) & 0xFFFFFFFF
+

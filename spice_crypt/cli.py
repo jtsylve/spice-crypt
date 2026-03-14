@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # SPDX-FileCopyrightText: © 2025 Bayou Bits Technologies, LLC
 # SPDX-FileCopyrightText: © 2025 Joe T. Sylve, Ph.D. <joe.sylve@gmail.com>
 # SPDX-FileCopyrightText: LicenseRef-Proprietary
@@ -10,13 +11,11 @@
 # Authorized representatives of the licensed recipient may request a copy of
 # the written license agreement via email at joe.sylve@gmail.com.
 
-#!/usr/bin/env python3
 """
 Command-line interface for SpiceCrypt
 """
 
 import sys
-import os
 import argparse
 from pathlib import Path
 from spice_crypt import __version__
@@ -25,7 +24,7 @@ from spice_crypt.decrypt import decrypt_stream
 def main():
     """Main entry point for the CLI"""
     parser = argparse.ArgumentParser(
-        description="SpiceCrypt - A tool for LTSpice encryption/decryption"
+        description="SpiceCrypt - A tool for decrypting LTSpice encrypted files"
     )
     parser.add_argument(
         "input_file", 
@@ -59,7 +58,7 @@ def main():
     args = parser.parse_args()
     
     # Check if output file exists and handle accordingly
-    if args.output and os.path.exists(args.output) and not args.force:
+    if args.output and Path(args.output).exists() and not args.force:
         sys.stderr.write(f"Error: Output file '{args.output}' already exists. Use --force to overwrite.\n")
         return 1
     
@@ -73,25 +72,18 @@ def main():
                 print(f"Processing as raw hex data: {args.input_file}", file=sys.stderr)
         
         # Stream processing - much more memory efficient
-        if args.output:
-            # Stream directly to output file
-            _, verification = decrypt_stream(
-                args.input_file,
-                args.output,
-                is_ltspice_file=not args.raw
-            )
-            if args.verbose:
+        output_dest = args.output if args.output else (
+            sys.stdout.buffer if hasattr(sys.stdout, 'buffer') else sys.stdout
+        )
+        _, verification = decrypt_stream(
+            args.input_file,
+            output_dest,
+            is_ltspice_file=not args.raw
+        )
+        if args.verbose:
+            if args.output:
                 print(f"Decrypted content written to '{args.output}'", file=sys.stderr)
-                print(f"Verification values: {verification}", file=sys.stderr)
-        else:
-            # Stream to stdout
-            content, verification = decrypt_stream(
-                args.input_file,
-                sys.stdout.buffer if hasattr(sys.stdout, 'buffer') else sys.stdout,
-                is_ltspice_file=not args.raw
-            )
-            if args.verbose:
-                print(f"Verification values: {verification}", file=sys.stderr)
+            print(f"Verification values: {verification}", file=sys.stderr)
     
     except FileNotFoundError:
         sys.stderr.write(f"Error: File not found: {args.input_file}\n")

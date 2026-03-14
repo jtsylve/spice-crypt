@@ -11,7 +11,7 @@
 # the written license agreement via email at joe.sylve@gmail.com.
 
 """
-SpiceCrypt - A library for handling LTSpice encryption and decryption
+SpiceCrypt - A library for decrypting LTSpice encrypted files
 """
 
 __version__ = '0.1.0'

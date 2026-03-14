@@ -10,8 +10,13 @@
 # Authorized representatives of the licensed recipient may request a copy of
 # the written license agreement via email at joe.sylve@gmail.com.
 
-import numpy as np
+import struct
 from spice_crypt.des import LTSpiceDES
+
+# Masks for wrapping arithmetic to fixed-width unsigned integers
+_MASK32 = 0xFFFFFFFF
+_MASK64 = 0xFFFFFFFFFFFFFFFF
+
 
 class CryptoState:
     def __init__(self, table: bytes):
@@ -24,94 +29,93 @@ class CryptoState:
 
     def reset(self):
         """
-        Initializes the cryptographic state using the predefined 1024-byte table
+        Initializes the cryptographic state using the predefined 1024-byte table.
         """
-        # Suppress overflow warnings since they're expected in crypto operations
-        with np.errstate(over='ignore'):
-            # Validate table length
-            if len(self.crypto_table) != 1024:
-                raise ValueError("Crypto table must be 1024 bytes")
-            
-            # Convert to numpy array for efficient operations
-            bytes_array = np.frombuffer(self.crypto_table, dtype=np.uint8)
-            
-            # Pass 1: Checksums for even and odd bytes
-            even_byte_sum = np.uint32(np.sum(bytes_array[::2])) & 0xFF
-            odd_byte_sum = np.uint32(np.sum(bytes_array[1::2])) & 0xFF
-            
-            # Pass 2: Sum bytes by their position in 4-byte chunks
-            byte_group_sums = np.sum(bytes_array.reshape(256, 4), axis=0, dtype=np.uint32)
-            byte_sum_result = np.sum(byte_group_sums, dtype=np.uint32)
-            
-            # Pass 3: Sum 16-bit words by their position in 4-word chunks
-            words = np.frombuffer(self.crypto_table, dtype=np.uint16)
-            word_group_sums = np.sum(words.reshape(128, 4), axis=0, dtype=np.uint32)
-            word_sum_result = np.sum(word_group_sums, dtype=np.uint32)
-            
-            # Pass 4: Sum 64-bit qwords in 2-qword chunks
-            qwords = np.frombuffer(self.crypto_table, dtype=np.uint64)
-            qword_group_sums = np.sum(qwords.reshape(64, 2), axis=0, dtype=np.uint64)
-            
-            # Create combined qword and extract important 16-bit parts
-            qword_high_part = np.uint32(qword_group_sums[1] >> 32)
-            qword_low_part = np.uint32(qword_group_sums[1] & 0xFFFFFFFF)
-            combined_qword = qword_group_sums[0] + ((np.uint64(qword_high_part) << 32) | np.uint64(qword_low_part))
-            
-            # Extract 16-bit values
-            qword_low_word = np.uint32(combined_qword & 0xFFFF)
-            qword_high_word = np.uint32((combined_qword >> 32) & 0xFFFF)
-            
-            # Final XOR transformation
-            state_vector = np.array([
-                odd_byte_sum,
-                even_byte_sum,
-                qword_low_word,
-                qword_high_word
-            ], dtype=np.uint32)
-            
-            xor_mask = np.array([0x00000054, 0x000000E7, 0x66E22120, 0x20E905C8], dtype=np.uint32)
-            final_state = state_vector ^ xor_mask
-            
-            # Store final results
-            self.odd_byte_checksum = final_state[0]
-            self.even_byte_checksum = final_state[1]
-            self.key_value = (np.uint64(final_state[3]) << 32) | np.uint64(final_state[2])
+        table = self.crypto_table
 
-    def decrypt_block(self, data: bytearray):
+        # Pass 1: Compute checksums over even-indexed and odd-indexed bytes.
+        # Only the low 8 bits of each sum are kept.
+        even_byte_sum = sum(table[i] for i in range(0, 1024, 2)) & 0xFF
+        odd_byte_sum = sum(table[i] for i in range(1, 1024, 2)) & 0xFF
+
+        # Pass 2: Sum bytes by their position in 4-byte chunks.
+        # The table is treated as 256 groups of 4 bytes.  Each of the 4
+        # positional accumulators receives bytes at the same offset within
+        # every group, and the totals are then summed together.
+        # (present in the original binary but the results are unused)
+        # byte_group_sums = [0] * 4
+        # for i in range(0, 1024, 4):
+        #     for j in range(4):
+        #         byte_group_sums[j] = (byte_group_sums[j] + table[i + j]) & _MASK32
+        # byte_sum_result = sum(byte_group_sums) & _MASK32
+
+        # Pass 3: Sum 16-bit little-endian words by their position in
+        # 4-word (8-byte) chunks.  Same idea as Pass 2 but operating on
+        # 16-bit units instead of bytes.
+        # (present in the original binary but the results are unused)
+        # word_group_sums = [0] * 4
+        # for i in range(0, 1024, 8):
+        #     for j in range(4):
+        #         word_group_sums[j] = (word_group_sums[j]
+        #                               + struct.unpack_from('<H', table, i + j * 2)[0]) & _MASK32
+        # word_sum_result = sum(word_group_sums) & _MASK32
+
+        # Pass 4: Sum 64-bit little-endian qwords in 2-qword (16-byte)
+        # chunks.  The table is treated as 64 groups of two qwords.
+        # Even-offset (0) and odd-offset (8) qwords are accumulated
+        # separately, then added together.
+        qword_sum_even = 0  # accumulator for qwords at offset 0 in each group
+        qword_sum_odd = 0   # accumulator for qwords at offset 8 in each group
+        for i in range(0, 1024, 16):
+            qword_sum_even = (qword_sum_even + struct.unpack_from('<Q', table, i)[0]) & _MASK64
+            qword_sum_odd = (qword_sum_odd + struct.unpack_from('<Q', table, i + 8)[0]) & _MASK64
+
+        # Combine the two qword accumulators and extract the 16-bit words
+        # that will feed into the DES key: bits [15:0] and bits [47:32].
+        combined_qword = (qword_sum_even + qword_sum_odd) & _MASK64
+        qword_low_word = combined_qword & 0xFFFF
+        qword_high_word = (combined_qword >> 32) & 0xFFFF
+
+        # Final XOR transformation to produce the crypto state.
+        # The checksums are XOR'd with fixed constants and the two 16-bit
+        # qword-derived words are XOR'd with 32-bit constants to form the
+        # 64-bit DES key.
+        self.odd_byte_checksum = odd_byte_sum ^ 0x54
+        self.even_byte_checksum = even_byte_sum ^ 0xE7
+        key_low = (qword_low_word ^ 0x66E22120) & _MASK32
+        key_high = (qword_high_word ^ 0x20E905C8) & _MASK32
+        self.key_value = (key_high << 32) | key_low
+
+    def decrypt_block(self, data: bytes):
         """
-        Decrypts a block of data using the cryptographic state and table
-        
+        Decrypts a block of data using the cryptographic state and table.
+
         Args:
             data: 8-byte block to decrypt
-            
+
         Returns:
             32-bit decrypted result
         """
-        crypto_table = self.crypto_table
-        # Ensure crypto_table is correct length
-        if len(crypto_table) != 0x400:
-            raise ValueError("Crypto table must be 1024 bytes")
-        
-        # Ensure data is correct length
         if len(data) != 8:
             raise ValueError("Data block must be 8 bytes")
-        
-        # Make a copy of data to modify it
+
+        crypto_table = self.crypto_table
         data_copy = bytearray(data)
 
-        # Update first element of the state and XOR data bytes
+        # For each byte in the block, advance the checksum state and XOR
+        # the ciphertext byte with a table byte selected by the running
+        # checksum.  This acts as a pre-DES stream-cipher layer.
         for i in range(8):
-            # Update first element by adding second element (with overflow handling)
-            self.odd_byte_checksum = np.uint32(self.odd_byte_checksum + self.even_byte_checksum)
-            
-            # Calculate index into crypto_table
+            # Advance the odd checksum by adding the even checksum (mod 2^32)
+            self.odd_byte_checksum = (self.odd_byte_checksum + self.even_byte_checksum) & _MASK32
+
+            # Use the checksum to pick an index into the crypto table
+            # (range 1..0x3fd, i.e. avoiding the first byte)
             table_index = (self.odd_byte_checksum % 0x3fd) + 1
-            
-            # XOR data byte with table byte
+
+            # XOR the ciphertext byte with the selected table byte
             data_copy[i] ^= crypto_table[table_index]
-        
-        # Decrypt the data
-        result = self.DES.crypt(np.uint64(int.from_bytes(data_copy, 'little')), np.uint64(self.key_value), True)
-        
-        # Return the second 32-bit word from the result
-        return result
+
+        # Decrypt the XOR'd block with the DES variant (little-endian
+        # 64-bit input, returns the low 32-bit result)
+        return self.DES.crypt(int.from_bytes(data_copy, 'little'), self.key_value, True)

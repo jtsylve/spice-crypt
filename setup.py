@@ -18,9 +18,9 @@ with open("README.md", "r", encoding="utf-8") as fh:
 setup(
     name="spice-crypt",
     version="0.1.0",
-    author="Joe",
+    author="Joe T. Sylve, Ph.D.",
     author_email="joe@example.com",
-    description="A library for handling LTSpice encryption and decryption",
+    description="A library for decrypting LTSpice encrypted files",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/bayou-bits/spice-crypt",
@@ -30,9 +30,7 @@ setup(
         "Operating System :: OS Independent",
     ],
     python_requires=">=3.6",
-    install_requires=[
-        "numpy>=1.20.0",
-    ],
+    install_requires=[],
     extras_require={
         "dev": [
             "pytest>=7.0.0",
