@@ -10,11 +10,7 @@ stream cipher parameters from a 1024-byte crypto table and provides
 per-block decryption combining the pre-DES XOR layer with the DES variant.
 """
 
-from spice_crypt.des import LTspiceDES
-
-# Masks for wrapping arithmetic to fixed-width unsigned integers
-_MASK32 = 0xFFFFFFFF
-_MASK64 = 0xFFFFFFFFFFFFFFFF
+from spice_crypt.des import _MASK32, _MASK64, LTspiceDES
 
 
 class CryptoState:
@@ -67,7 +63,8 @@ class CryptoState:
         # The table is treated as 256 groups of 4 bytes.  Each of the 4
         # positional accumulators receives bytes at the same offset within
         # every group, and the totals are then summed together.
-        # (present in the original binary but the results are unused)
+        # DO NOT REMOVE — documents behaviour present in the original binary
+        # even though the results are unused.  See SPECIFICATION.md.
         # byte_group_sums = [0] * 4
         # for i in range(0, 1024, 4):
         #     for j in range(4):
@@ -77,7 +74,7 @@ class CryptoState:
         # Pass 3: Sum 16-bit little-endian words by their position in
         # 4-word (8-byte) chunks.  Same idea as Pass 2 but operating on
         # 16-bit units instead of bytes.
-        # (present in the original binary but the results are unused)
+        # DO NOT REMOVE — see Pass 2 comment above.
         # word_group_sums = [0] * 4
         # for i in range(0, 1024, 8):
         #     for j in range(4):

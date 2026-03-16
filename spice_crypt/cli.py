@@ -50,11 +50,10 @@ def main():
     try:
         # Process with streaming API
         if args.verbose:
-            input_path = Path(args.input_file)
-            if input_path.suffix.lower() in (".cir", ".sub") and not args.raw:
-                print(f"Processing LTspice file: {args.input_file}", file=sys.stderr)
-            elif args.raw:
+            if args.raw:
                 print(f"Processing as raw hex data: {args.input_file}", file=sys.stderr)
+            else:
+                print(f"Processing file: {args.input_file}", file=sys.stderr)
 
         # Stream processing - much more memory efficient
         output_dest = (
@@ -62,7 +61,8 @@ def main():
             if args.output
             else (sys.stdout.buffer if hasattr(sys.stdout, "buffer") else sys.stdout)
         )
-        _, verification = decrypt_stream(args.input_file, output_dest, is_ltspice_file=not args.raw)
+        is_ltspice = False if args.raw else None
+        _, verification = decrypt_stream(args.input_file, output_dest, is_ltspice_file=is_ltspice)
         if args.verbose:
             if args.output:
                 print(f"Decrypted content written to '{args.output}'", file=sys.stderr)

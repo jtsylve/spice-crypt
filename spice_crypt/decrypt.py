@@ -33,9 +33,14 @@ class LTspiceFileParser:
         Initialize the parser with a file object.
 
         Args:
-            file_obj: File-like object (text mode) or path to file
+            file_obj: File-like object (text mode) that supports iteration
             raw_mode: Whether to treat the input as raw hex data
+
+        Raises:
+            TypeError: If *file_obj* is not iterable.
         """
+        if not hasattr(file_obj, "__iter__"):
+            raise TypeError("file_obj must be an iterable file-like object")
         self.file_obj = file_obj
         self.raw_mode = raw_mode
         self.checksums = None

@@ -10,6 +10,10 @@ its text-based encryption format. See SPECIFICATION.md Section 1.4 for a
 detailed description of the deviations from standard DES (FIPS 46-3).
 """
 
+# Masks for wrapping arithmetic to fixed-width unsigned integers
+_MASK32 = 0xFFFFFFFF
+_MASK64 = 0xFFFFFFFFFFFFFFFF
+
 
 def _build_permutation_lut(table):
     """
@@ -267,7 +271,7 @@ class LTspiceDES:
     @staticmethod
     def _swap_halves(value):
         """Swap the lower and upper 32 bits of a 64-bit value."""
-        return (value >> 32) | ((value & 0xFFFFFFFF) << 32)
+        return (value >> 32) | ((value & _MASK32) << 32)
 
     @staticmethod
     def rotate_reduced_keys(value, count):
@@ -356,8 +360,8 @@ class LTspiceDES:
         permuted = _apply_permutation(self._swap_halves(input_block), self._INITIAL_PERM_LUT)
 
         # Split the 64-bit permuted block into two 32-bit halves
-        left_half = permuted & 0xFFFFFFFF
-        right_half = (permuted >> 32) & 0xFFFFFFFF
+        left_half = permuted & _MASK32
+        right_half = (permuted >> 32) & _MASK32
 
         # Main DES rounds (16 rounds)
         subkeys = self.subkeys
@@ -378,4 +382,4 @@ class LTspiceDES:
         # standard DES).  Only the low 32-bit dword of the result is
         # returned, as the LTspice variant discards the high bits.
         combined = (left_half << 32) | right_half
-        return _apply_permutation(combined, self._FINAL_PERM_LUT) & 0xFFFFFFFF
+        return _apply_permutation(combined, self._FINAL_PERM_LUT) & _MASK32
