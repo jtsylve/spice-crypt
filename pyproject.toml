@@ -4,7 +4,7 @@
 
 [project]
 name = "spice-crypt"
-version = "1.1.0"
+version = "1.1.1-dev"
 description = "A library for decrypting LTspice® encrypted files"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -18,7 +18,8 @@ classifiers = [
 ]
 
 [project.scripts]
-spice-decrypt = "spice_crypt.cli:main"
+spice-crypt = "spice_crypt.cli:main"
+spice-decrypt = "spice_crypt.cli:main_deprecated"
 
 [dependency-groups]
 dev = [

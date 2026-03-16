@@ -2,6 +2,15 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+"""
+Decryption support for LTspice encrypted text-based (hex/DES) files.
+
+This module provides :class:`LTspiceFileParser` for streaming decryption of
+the text-based hex/DES format, as well as the convenience functions
+:func:`decrypt` and :func:`decrypt_stream` which auto-detect the file format
+(text-based or Binary File) and delegate accordingly.
+"""
+
 import binascii
 import contextlib
 import io

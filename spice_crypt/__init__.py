@@ -6,7 +6,7 @@
 SpiceCrypt - A library for decrypting LTspice® encrypted files
 """
 
-__version__ = "1.1.0"
+__version__ = "1.1.1-dev"
 
 from spice_crypt.binary_file import BinaryFileParser
 from spice_crypt.crypto_state import CryptoState

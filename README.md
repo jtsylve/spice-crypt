@@ -16,6 +16,20 @@ Or add as a dependency to an existing project:
 uv add git+https://github.com/jtsylve/spice-crypt.git
 ```
 
+## Updating
+
+Update an existing tool installation:
+
+```bash
+uv tool upgrade spice-crypt
+```
+
+Or update the dependency in a project:
+
+```bash
+uv lock --upgrade-package spice-crypt
+```
+
 ## Requirements
 
 - Python 3.10 or higher
@@ -23,29 +37,29 @@ uv add git+https://github.com/jtsylve/spice-crypt.git
 
 ## Command Line Usage
 
-SpiceCrypt provides a `spice-decrypt` command for decrypting LTspice encrypted files:
+SpiceCrypt provides a `spice-crypt` command for decrypting LTspice encrypted files. The legacy `spice-decrypt` alias is deprecated and will be removed in a future release.
 
 ```bash
 # Run directly without installing
-uvx --from git+https://github.com/jtsylve/spice-crypt.git spice-decrypt path/to/encrypted_file.CIR
+uvx --from git+https://github.com/jtsylve/spice-crypt.git spice-crypt path/to/encrypted_file.CIR
 
 # Or after installation, decrypt to stdout
-spice-decrypt path/to/encrypted_file.CIR
+spice-crypt path/to/encrypted_file.CIR
 
 # Decrypt to a file
-spice-decrypt -o output.cir path/to/encrypted_file.CIR
+spice-crypt -o output.cir path/to/encrypted_file.CIR
 
 # Force overwrite if output file exists
-spice-decrypt -f -o output.cir path/to/encrypted_file.CIR
+spice-crypt -f -o output.cir path/to/encrypted_file.CIR
 
 # Decrypt with verbose output (shows verification values)
-spice-decrypt --verbose path/to/encrypted_file.CIR
+spice-crypt --verbose path/to/encrypted_file.CIR
 
 # Process raw hex data (not LTspice format)
-spice-decrypt --raw path/to/hex_file.txt
+spice-crypt --raw path/to/hex_file.txt
 
 # Show version
-spice-decrypt -v
+spice-crypt -v
 ```
 
 ## Python API

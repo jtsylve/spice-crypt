@@ -2,6 +2,14 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+"""
+Cryptographic state management for LTspice text-based DES decryption.
+
+This module implements :class:`CryptoState`, which derives the DES key and
+stream cipher parameters from a 1024-byte crypto table and provides
+per-block decryption combining the pre-DES XOR layer with the DES variant.
+"""
+
 from spice_crypt.des import LTspiceDES
 
 # Masks for wrapping arithmetic to fixed-width unsigned integers
@@ -10,7 +18,28 @@ _MASK64 = 0xFFFFFFFFFFFFFFFF
 
 
 class CryptoState:
+    """Manages key derivation and per-block decryption for the text-based DES format.
+
+    The 1024-byte crypto table (the first 128 blocks of the hex payload) is
+    processed to derive three pieces of state:
+
+    - Two stream cipher parameters (``odd_byte_checksum`` and
+      ``even_byte_checksum``) used by the pre-DES XOR layer.
+    - A 64-bit DES key used by the modified DES block cipher.
+
+    See SPECIFICATION.md Sections 1.2 and 1.3 for the full derivation.
+    """
+
     def __init__(self, table: bytes):
+        """
+        Initialize the crypto state from a 1024-byte crypto table.
+
+        Args:
+            table: The 1024-byte crypto table extracted from the file payload.
+
+        Raises:
+            ValueError: If *table* is not exactly 1024 bytes.
+        """
         if len(table) != 1024:
             raise ValueError("crypto table must be exactly 1024 bytes")
 

@@ -17,7 +17,7 @@ from spice_crypt.decrypt import decrypt_stream
 
 
 def main():
-    """Main entry point for the CLI"""
+    """Main entry point for the CLI."""
     parser = argparse.ArgumentParser(
         description="SpiceCrypt - A tool for decrypting LTspice® encrypted files"
     )
@@ -79,6 +79,18 @@ def main():
         return 1
 
     return 0
+
+
+def main_deprecated():
+    """Deprecated entry point. Use ``spice-crypt`` instead."""
+    import warnings
+
+    warnings.warn(
+        "spice-decrypt is deprecated, use spice-crypt instead",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return main()
 
 
 if __name__ == "__main__":

@@ -2,6 +2,14 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+"""
+LTspice DES variant implementation.
+
+This module implements the modified DES block cipher used by LTspice for
+its text-based encryption format. See SPECIFICATION.md Section 1.4 for a
+detailed description of the deviations from standard DES (FIPS 46-3).
+"""
+
 
 def _build_permutation_lut(table):
     """
