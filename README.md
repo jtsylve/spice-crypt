@@ -4,21 +4,33 @@ A specialized Python library for decrypting LTspice® encrypted model and symbol
 
 ## Installation
 
-Install as a tool with [uv](https://docs.astral.sh/uv/):
+Install from [PyPI](https://pypi.org/project/spice-crypt/):
 
 ```bash
-uv tool install git+https://github.com/jtsylve/spice-crypt.git
+pip install spice-crypt
+```
+
+Or with [uv](https://docs.astral.sh/uv/):
+
+```bash
+uv tool install spice-crypt
 ```
 
 Or add as a dependency to an existing project:
 
 ```bash
-uv add git+https://github.com/jtsylve/spice-crypt.git
+uv add spice-crypt
 ```
 
 ## Updating
 
-Update an existing tool installation:
+Update with pip:
+
+```bash
+pip install --upgrade spice-crypt
+```
+
+Or update a uv tool installation:
 
 ```bash
 uv tool upgrade spice-crypt
@@ -41,7 +53,7 @@ SpiceCrypt provides a `spice-crypt` command for decrypting LTspice encrypted fil
 
 ```bash
 # Run directly without installing
-uvx --from git+https://github.com/jtsylve/spice-crypt.git spice-crypt path/to/encrypted_file.CIR
+uvx spice-crypt path/to/encrypted_file.CIR
 
 # Or after installation, decrypt to stdout
 spice-crypt path/to/encrypted_file.CIR
@@ -54,6 +66,9 @@ spice-crypt -f -o output.cir path/to/encrypted_file.CIR
 
 # Decrypt with verbose output (shows verification values)
 spice-crypt --verbose path/to/encrypted_file.CIR
+
+# Suppress all error messages
+spice-crypt --quiet -o output.cir path/to/encrypted_file.CIR
 
 # Process raw hex data (not LTspice format)
 spice-crypt --raw path/to/hex_file.txt
