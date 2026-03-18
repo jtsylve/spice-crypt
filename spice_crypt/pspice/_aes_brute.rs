@@ -294,6 +294,7 @@ mod x86ni {
         blk = _mm_aesdec_si128(blk, _mm_aesimc_si128(rk(16)));
         blk = _mm_aesdec_si128(blk, _mm_aesimc_si128(rk(12)));
         blk = _mm_aesdec_si128(blk, _mm_aesimc_si128(rk(8)));
+        blk = _mm_aesdec_si128(blk, _mm_aesimc_si128(rk(4)));
         // Round 14 (AESDECLAST omits InvMixColumns)
         blk = _mm_aesdeclast_si128(blk, rk(0));
 
