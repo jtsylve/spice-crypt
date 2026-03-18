@@ -6,7 +6,7 @@
 SpiceCrypt - A library for decrypting LTspice® and PSpice® encrypted files
 """
 
-__version__ = "2.0.0rc1"
+__version__ = "2.0.0rc2"
 
 from spice_crypt.decrypt import decrypt, decrypt_stream
 from spice_crypt.ltspice.binary_file import BinaryFileParser

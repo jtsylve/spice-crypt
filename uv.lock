@@ -176,7 +176,7 @@ wheels = [
 
 [[package]]
 name = "spice-crypt"
-version = "2.0.0rc1"
+version = "2.0.0rc2"
 source = { editable = "." }
 
 [package.dev-dependencies]
