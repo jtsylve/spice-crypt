@@ -32,6 +32,17 @@ jobs:
       - name: Run ruff format check
         run: uv run ruff format --check .
 
+  rust:
+    name: Rust lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - run: cargo fmt --check
+      - run: cargo clippy -- -D warnings
+
   reuse:
     name: REUSE compliance
     runs-on: ubuntu-latest

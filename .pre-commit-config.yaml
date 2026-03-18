@@ -20,6 +20,14 @@ repos:
         args: [--fix]
       - id: ruff-format
 
+  - repo: https://github.com/doublify/pre-commit-rust
+    rev: v1.0
+    hooks:
+      - id: fmt
+        args: [--manifest-path, Cargo.toml, --]
+      - id: clippy
+        args: [--manifest-path, Cargo.toml, --, -D, warnings]
+
   - repo: https://github.com/fsfe/reuse-tool
     rev: v6.2.0
     hooks:

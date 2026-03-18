@@ -21,6 +21,13 @@ dist/
 *.swp
 *.swo
 
+# Rust / Maturin
+target/
+*.so
+*.dylib
+*.dll
+*.pyd
+
 # OS specific files
 .DS_Store
 

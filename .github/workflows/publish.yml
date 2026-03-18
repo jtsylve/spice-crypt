@@ -12,27 +12,97 @@ permissions:
   contents: read
 
 jobs:
-  build:
-    name: Build distribution
+  # ---------------------------------------------------------------------------
+  # Build wheels for each platform
+  # ---------------------------------------------------------------------------
+
+  linux:
+    name: Linux (${{ matrix.target }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            runner: ubuntu-latest
+          - target: aarch64-unknown-linux-gnu
+            runner: ubuntu-latest
+          - target: x86_64-unknown-linux-musl
+            runner: ubuntu-latest
+          - target: aarch64-unknown-linux-musl
+            runner: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          args: --release --locked --out dist --find-interpreter
+          manylinux: auto
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-linux-${{ matrix.target }}
+          path: dist/
+
+  macos:
+    name: macOS (${{ matrix.target }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-apple-darwin
+            runner: macos-13      # Intel runner
+          - target: aarch64-apple-darwin
+            runner: macos-14      # Apple Silicon runner
+    steps:
+      - uses: actions/checkout@v4
+      - uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          args: --release --locked --out dist --find-interpreter
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-macos-${{ matrix.target }}
+          path: dist/
+
+  windows:
+    name: Windows (${{ matrix.target }})
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-pc-windows-msvc
+          - target: aarch64-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@v4
+      - uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          args: --release --locked --out dist --find-interpreter
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-windows-${{ matrix.target }}
+          path: dist/
+
+  sdist:
+    name: Source distribution
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-
-      - name: Build package
-        run: uv build
-
-      - name: Upload distribution artifacts
-        uses: actions/upload-artifact@v4
+      - uses: PyO3/maturin-action@v1
         with:
-          name: dist
+          command: sdist
+          args: --out dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-sdist
           path: dist/
+
+  # ---------------------------------------------------------------------------
+  # Publish all wheels + sdist to PyPI
+  # ---------------------------------------------------------------------------
 
   publish-pypi:
     name: Publish to PyPI
-    needs: build
+    needs: [linux, macos, windows, sdist]
     runs-on: ubuntu-latest
     environment:
       name: pypi
@@ -40,10 +110,10 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - name: Download distribution artifacts
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
-          name: dist
+          pattern: wheels-*
+          merge-multiple: true
           path: dist/
 
       - name: Publish to PyPI

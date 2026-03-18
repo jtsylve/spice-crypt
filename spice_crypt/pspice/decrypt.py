@@ -87,6 +87,7 @@ class PSpiceFileParser:
         file_obj,
         user_key_file: str | os.PathLike | None = None,
         encrypted_file_path: str | os.PathLike | None = None,
+        user_key_bytes: bytes | None = None,
     ):
         """
         Args:
@@ -94,10 +95,13 @@ class PSpiceFileParser:
             user_key_file: Path to user key CSV file for mode 4.
             encrypted_file_path: Path of the file being decrypted
                 (used for user key identity matching in mode 4).
+            user_key_bytes: Raw user key bytes for mode 4 (alternative
+                to loading from a CSV file via *user_key_file*).
         """
         self.file_obj = file_obj
         self.user_key_file = user_key_file
         self.encrypted_file_path = encrypted_file_path
+        self.user_key_bytes = user_key_bytes
 
     def decrypt_stream(self) -> Generator[bytes, None, tuple[int, int]]:
         """Stream-decrypt the file, yielding plaintext chunks.
@@ -129,8 +133,8 @@ class PSpiceFileParser:
                 mode, version_str = mode_from_marker(stripped)
 
                 # Derive keys
-                user_key = None
-                if mode == 4 and self.user_key_file:
+                user_key = self.user_key_bytes
+                if user_key is None and mode == 4 and self.user_key_file:
                     user_key = load_user_keys(self.user_key_file, self.encrypted_file_path)
                 short_key, _ = derive_keys(mode, version_str, user_key)
                 cipher = _make_cipher(mode, short_key)

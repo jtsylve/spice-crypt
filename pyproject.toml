@@ -17,7 +17,6 @@ classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Science/Research",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -36,9 +35,6 @@ Issues = "https://github.com/jtsylve/spice-crypt/issues"
 spice-crypt = "spice_crypt.cli:main"
 spice-decrypt = "spice_crypt.cli:main_deprecated"
 
-[project.optional-dependencies]
-aes = ["cryptography>=44.0"]
-
 [dependency-groups]
 dev = [
     "pre-commit>=4.5.0",
@@ -46,8 +42,12 @@ dev = [
 ]
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["maturin>=1,<2"]
+build-backend = "maturin"
+
+[tool.maturin]
+module-name = "spice_crypt.pspice._aes_brute"
+python-source = "."
 
 [tool.ruff]
 line-length = 100

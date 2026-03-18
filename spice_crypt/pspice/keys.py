@@ -65,6 +65,19 @@ def mode_from_marker(marker: str) -> tuple[int, str]:
     return (0, version)
 
 
+_SHORT_BASE = b"8gM2"
+"""Mode 3/4 short key base string."""
+
+_EXT_BASE = b"H41Mlwqaspj1nxasyhq8530nh1r"
+"""Mode 3/4 extended key base string."""
+
+
+def version_suffix(version_str: str) -> bytes:
+    """Compute the numeric suffix bytes from a marker version string."""
+    n = int(version_str) + 999 if version_str else 999
+    return str(n).encode("ascii")
+
+
 def derive_keys(
     mode: int,
     version_str: str = "",
@@ -85,8 +98,7 @@ def derive_keys(
     if mode == 0:
         return (b"0a0vr7jo", b"ths0m02ukhy034r6")
 
-    n = int(version_str) + 999 if version_str else 999
-    n_bytes = str(n).encode("ascii")
+    n_bytes = version_suffix(version_str)
 
     if mode == 1:
         return (b"1b1w" + n_bytes, b"uit1n13vliz1" + n_bytes)
@@ -96,8 +108,8 @@ def derive_keys(
         return (b"1yti" + n_bytes, b"nhtti50rplx2" + n_bytes)
 
     # Modes 3 and 4 share the same base strings
-    short_base = bytearray(b"8gM2")
-    ext_base = bytearray(b"H41Mlwqaspj1nxasyhq8530nh1r")
+    short_base = bytearray(_SHORT_BASE)
+    ext_base = bytearray(_EXT_BASE)
 
     if mode == 4 and user_key_bytes and len(user_key_bytes) >= 4:
         # XOR first 4 bytes of user key into the short key base

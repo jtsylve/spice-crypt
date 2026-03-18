@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: © 2025-2026 Joe T. Sylve, Ph.D. <joe.sylve@gmail.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+[package]
+name = "spice-crypt"
+version = "0.0.0"  # Version managed in pyproject.toml
+edition = "2021"
+
+[lib]
+name = "_aes_brute"
+path = "spice_crypt/pspice/_aes_brute.rs"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.28", features = ["abi3-py310"] }
+rayon = "1"
+cpufeatures = "0.3"
+
+[profile.release]
+codegen-units = 1
+lto = "thin"
+strip = "symbols"

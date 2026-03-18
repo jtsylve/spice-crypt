@@ -37,6 +37,33 @@ class _DeprecatedShortVersionAction(argparse.Action):
         parser.exit()
 
 
+def _recover_key(args):
+    """Run Mode 4 brute-force key recovery."""
+    from spice_crypt.pspice.attack import recover_mode4_key
+
+    try:
+        if args.verbose:
+            print("PSpice Mode 4 key recovery (Rust/AES-NI)", file=sys.stderr)
+
+        result = recover_mode4_key(args.input_file)
+    except FileNotFoundError:
+        if not args.quiet:
+            sys.stderr.write(f"Error: File not found: {args.input_file}\n")
+        return 1
+    except (ValueError, RuntimeError) as e:
+        if not args.quiet:
+            sys.stderr.write(f"Error: {e}\n")
+        return 1
+
+    print(f"User key: {result.user_key_full.decode('ascii', errors='replace')}")
+    if args.verbose:
+        print(f"Short key bytes (hex): {result.short_key_bytes.hex()}")
+        print(f"User key short: {result.user_key_short.decode('ascii', errors='replace')}")
+        print(f"User key extended: {result.user_key_extended.decode('ascii', errors='replace')}")
+
+    return 0
+
+
 def main():
     """Main entry point for the CLI."""
     parser = argparse.ArgumentParser(
@@ -64,11 +91,25 @@ def main():
         help="Show program version and exit",
     )
 
+    parser.add_argument(
+        "--user-key",
+        help="User key string for PSpice Mode 4 decryption (31-byte key from CSV file)",
+    )
+    parser.add_argument(
+        "--recover-key",
+        action="store_true",
+        help="Recover the Mode 4 user encryption key via brute-force attack",
+    )
+
     verbosity = parser.add_mutually_exclusive_group()
     verbosity.add_argument("--verbose", action="store_true", help="Display additional information")
     verbosity.add_argument("--quiet", action="store_true", help="Suppress all error messages")
 
     args = parser.parse_args()
+
+    # Key recovery mode
+    if args.recover_key:
+        return _recover_key(args)
 
     # Check if output file exists and handle accordingly
     if args.output and Path(args.output).exists() and not args.force:
@@ -93,7 +134,10 @@ def main():
             else (sys.stdout.buffer if hasattr(sys.stdout, "buffer") else sys.stdout)
         )
         is_ltspice = False if args.raw else None
-        _, verification = decrypt_stream(args.input_file, output_dest, is_ltspice_file=is_ltspice)
+        user_key = args.user_key.encode("ascii") if args.user_key else None
+        _, verification = decrypt_stream(
+            args.input_file, output_dest, is_ltspice_file=is_ltspice, user_key=user_key
+        )
         if args.verbose:
             if args.output:
                 print(f"Decrypted content written to '{args.output}'", file=sys.stderr)

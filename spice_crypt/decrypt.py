@@ -34,7 +34,7 @@ def _try_binary_file(stream):
     return None
 
 
-def _try_pspice_format(file_obj):
+def _try_pspice_format(file_obj, user_key=None):
     """Peek at *file_obj* and return a :class:`PSpiceFileParser` if it matches.
 
     Scans up to 50 lines for PSpice markers, then resets the stream
@@ -52,7 +52,7 @@ def _try_pspice_format(file_obj):
                 file_obj.seek(pos)
                 from spice_crypt.pspice.decrypt import PSpiceFileParser
 
-                return PSpiceFileParser(file_obj)
+                return PSpiceFileParser(file_obj, user_key_bytes=user_key)
     except (OSError, UnicodeDecodeError):
         pass
     file_obj.seek(pos)
@@ -85,7 +85,7 @@ def _run_decrypt_generator(gen, output_file, stack):
 
 
 def decrypt_stream(
-    input_file, output_file=None, is_ltspice_file=None
+    input_file, output_file=None, is_ltspice_file=None, user_key=None
 ) -> tuple[str | None, tuple[int, int]]:
     """
     Stream decrypt data from input_file to output_file.
@@ -99,6 +99,7 @@ def decrypt_stream(
         output_file: File object or path to write to (if None, returns result as string)
         is_ltspice_file: Boolean indicating if file is in LTspice format
                          If None, auto-detect based on content
+        user_key: Optional user key bytes for PSpice Mode 4 decryption
 
     Returns:
         tuple: (content, verification)
@@ -142,7 +143,7 @@ def decrypt_stream(
 
         # Try PSpice format detection (text-mode, seekable)
         if is_ltspice_file is None and hasattr(input_file, "seek"):
-            parser = _try_pspice_format(input_file)
+            parser = _try_pspice_format(input_file, user_key=user_key)
             if parser is not None:
                 return _run_decrypt_generator(parser.decrypt_stream(), output_file, stack)
 
