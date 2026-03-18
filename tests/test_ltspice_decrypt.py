@@ -26,10 +26,6 @@ class TestLTspiceDecryption:
         content, _ = decrypt_stream(str(DATA_DIR / "ltspice.lib"))
         assert extract_body(content) == PLAINTEXT_BODY
 
-    def test_auto_detect(self):
-        content, _ = decrypt_stream(str(DATA_DIR / "ltspice.lib"))
-        assert "R1 1 2 1k" in content
-
 
 class TestLTspiceFileParser:
     """Test the LTspiceFileParser class directly."""

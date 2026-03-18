@@ -30,6 +30,13 @@ repos:
 
   - repo: local
     hooks:
+      - id: check-version
+        name: check version consistency
+        entry: uv run python -B scripts/check_version.py
+        language: system
+        pass_filenames: false
+        files: (pyproject\.toml|spice_crypt/__init__\.py)
+
       - id: pytest
         name: pytest
         entry: uv run python -B -m pytest tests/
