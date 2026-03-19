@@ -1,6 +1,16 @@
 # SpiceCrypt
 
-A specialized Python library for decrypting LTspice® and PSpice® encrypted model files.  It supports both LTspice formats — the text-based format (`.CIR`, `.SUB`, `.LIB`, `.ASY`, and other files using a modified DES variant) and the Binary File format (a two-layer XOR stream cipher) — as well as six PSpice encryption modes (0–5, DES and AES-256 ECB), with automatic format detection.
+A Python library and CLI tool for decrypting encrypted SPICE model files.  SpiceCrypt supports LTspice® and PSpice® encryption formats with automatic format detection, enabling engineers to use lawfully obtained models in any simulator.
+
+## Features
+
+- **LTspice text-based format** — Custom DES variant used in encrypted `.CIR`, `.SUB`, `.LIB`, `.ASY`, and other files
+- **LTspice Binary File format** — Two-layer XOR stream cipher identified by the `<Binary File>` signature
+- **PSpice Modes 0–5** — Custom DES (modes 0–2) and AES-256 ECB (modes 3–5) with `$CDNENCSTART`/`$CDNENCFINISH` delimited blocks
+- **PSpice Mode 4 key recovery** — Brute-force recovery of the user-supplied encryption key via a hardware-accelerated Rust extension (AES-NI / ARM Crypto)
+- **Automatic format detection** — All formats are detected and handled transparently
+- **Streaming API** — Memory-efficient processing for large files
+- **No runtime dependencies** — Pure Python with an optional compiled Rust extension for key recovery
 
 ## Installation
 
@@ -22,156 +32,156 @@ Or add as a dependency to an existing project:
 uv add spice-crypt
 ```
 
-## Updating
-
-Update with pip:
+### Updating
 
 ```bash
-pip install --upgrade spice-crypt
-```
-
-Or update a uv tool installation:
-
-```bash
-uv tool upgrade spice-crypt
-```
-
-Or update the dependency in a project:
-
-```bash
-uv lock --upgrade-package spice-crypt
+pip install --upgrade spice-crypt    # pip
+uv tool upgrade spice-crypt          # uv tool
+uv lock --upgrade-package spice-crypt # uv project dependency
 ```
 
 ## Requirements
 
 - Python 3.10 or higher
-- No external dependencies
+- No runtime dependencies for decryption
+- Rust toolchain required only to build the optional extension for Mode 4 key recovery
 
 ## Command Line Usage
 
-SpiceCrypt provides a `spice-crypt` command for decrypting LTspice and PSpice encrypted files.
+SpiceCrypt provides the `spice-crypt` command.  All encryption formats are auto-detected.
 
 ```bash
 # Run directly without installing
-uvx spice-crypt path/to/encrypted_file.CIR
+uvx spice-crypt path/to/encrypted_file.lib
 
-# Or after installation, decrypt to stdout
-spice-crypt path/to/encrypted_file.CIR
+# Decrypt to stdout
+spice-crypt path/to/encrypted_file.lib
 
 # Decrypt to a file
-spice-crypt -o output.cir path/to/encrypted_file.CIR
+spice-crypt -o output.lib path/to/encrypted_file.lib
 
 # Force overwrite if output file exists
-spice-crypt -f -o output.cir path/to/encrypted_file.CIR
+spice-crypt -f -o output.lib path/to/encrypted_file.lib
 
-# Decrypt with verbose output (shows verification values)
-spice-crypt --verbose path/to/encrypted_file.CIR
+# Verbose output (shows verification values)
+spice-crypt --verbose path/to/encrypted_file.lib
 
 # Suppress all error messages
-spice-crypt --quiet -o output.cir path/to/encrypted_file.CIR
+spice-crypt --quiet -o output.lib path/to/encrypted_file.lib
 
-# Process raw hex data (not LTspice format)
+# Process raw hex data (bypass LTspice format detection)
 spice-crypt --raw path/to/hex_file.txt
 
 # Show version
 spice-crypt --version
-
-# PSpice: brute-force recover a Mode 4 user key
-spice-crypt --recover-key path/to/encrypted_file.LIB
-
-# PSpice: decrypt with a user key
-spice-crypt --user-key KEY path/to/encrypted_file.LIB
 ```
+
+### PSpice Mode 4
+
+Mode 4 is the only PSpice mode that uses a user-supplied encryption key.  SpiceCrypt can recover this key via brute force or decrypt directly if the key is known.
+
+```bash
+# Brute-force recover the user key (~seconds on modern hardware)
+spice-crypt --recover-key path/to/encrypted_file.lib
+
+# Decrypt with a known user key
+spice-crypt --user-key KEY path/to/encrypted_file.lib
+```
+
+Key recovery exploits a bug in PSpice's key derivation that reduces the effective keyspace from 2^256 to 2^32.  See [SPECIFICATIONS/pspice-attack-summary.md](SPECIFICATIONS/pspice-attack-summary.md) for details.
 
 ## Python API
 
-### `decrypt(data, is_ltspice_file=None)`
-
-Decrypt an in-memory string of encrypted data.
-
-```python
-from spice_crypt import decrypt
-
-with open("encrypted_file.CIR") as f:
-    data = f.read()
-
-plaintext, (v1, v2) = decrypt(data)
-print(plaintext)
-```
-
-**Parameters:**
-- `data` (str): Encrypted data as a string (LTspice format or raw hex).
-- `is_ltspice_file` (bool, optional): Whether the data is in LTspice format.  Auto-detected if `None`.
-
-**Returns:** `(plaintext, (v1, v2))`: The decrypted text and a tuple of CRC-based verification values.
-
 ### `decrypt_stream(input_file, output_file=None, is_ltspice_file=None, user_key=None)`
 
-Stream-decrypt from a file path or file object.  Supports LTspice formats (text-based hex/DES and Binary File) and PSpice formats (`$CDNENCSTART`/`$CDNENCFINISH` delimited blocks).  When called with a file path, the format is auto-detected: files beginning with the Binary File signature are handled first, then PSpice markers are checked, and otherwise the text-based LTspice format is assumed.
+Stream-decrypt from a file path or file object.  Supports all LTspice and PSpice formats with automatic detection.
 
 ```python
 from spice_crypt import decrypt_stream
 
-# Decrypt file to file (format auto-detected)
-_, verification = decrypt_stream("encrypted.CIR", "decrypted.cir")
+# Decrypt file to file
+_, verification = decrypt_stream("encrypted.lib", "decrypted.lib")
 
 # Decrypt file to string
-plaintext, verification = decrypt_stream("encrypted.CIR")
+plaintext, verification = decrypt_stream("encrypted.lib")
 
-# Use file objects directly
-with open("encrypted.CIR") as infile:
+# Use file objects
+with open("encrypted.lib") as infile:
     plaintext, verification = decrypt_stream(infile)
+
+# PSpice Mode 4 with a user key
+plaintext, _ = decrypt_stream("encrypted.lib", user_key=b"mykey")
 ```
 
 **Parameters:**
-- `input_file`: File path (str/PathLike) or file object (text or binary mode).
-- `output_file` (optional): File path (str) or binary-mode file object.  If `None`, returns decrypted content as a string.
-- `is_ltspice_file` (bool, optional): Whether the input is in LTspice format.  Auto-detected if `None`.
-- `user_key` (bytes, optional): Raw user key bytes for PSpice mode 4 decryption.
+- `input_file` — File path (str/PathLike) or file object (text or binary mode).
+- `output_file` (optional) — File path (str) or binary-mode file object.  If `None`, returns decrypted content as a string.
+- `is_ltspice_file` (bool, optional) — Whether the data is in LTspice format.  If `True`, skip PSpice detection; if `False`, treat as raw hex.  Auto-detected if `None`.
+- `user_key` (bytes, optional) — User key bytes for PSpice Mode 4 decryption.
 
-**Returns:** `(content, (v1, v2))`: `content` is the decrypted string if no output file was given, otherwise `None`.  `(v1, v2)` are verification values — for the text-based format these are CRC-based checksums that should match the values on the file's `End` line; for the Binary File format they are a CRC-32 and rotate-left hash of the decrypted content; for PSpice format both are 0.
+**Returns:** `(content, (v1, v2))` — `content` is the decrypted string if no output file was given, otherwise `None`.  `(v1, v2)` are format-specific verification values: CRC-based checksums for LTspice text format, CRC-32 and rotate-left hash for Binary File format, or `(0, 0)` for PSpice format.
 
-## File Formats
+### `decrypt(data, is_ltspice_file=None)`
 
-SpiceCrypt supports two LTspice encryption formats and six PSpice encryption modes, all auto-detected when decrypting:
+Decrypt an in-memory string of encrypted data.  Supports LTspice text-based format, raw hex, and PSpice text-based formats (but not Binary File format or PSpice Mode 4 with a user key).
 
-### Text-Based DES Format
+```python
+from spice_crypt import decrypt
 
-LTspice encrypted files in this format contain hex-encoded ciphertext wrapped in comment headers:
+with open("encrypted.lib") as f:
+    data = f.read()
 
-```
-* LTspice Encrypted File
-*
-* This encrypted file has been supplied by a 3rd
-* party vendor that does not wish to publicize
-* the technology used to implement this library.
-*
-* Permission is granted to use this file for
-* simulations but not to reverse engineer its
-* contents.
-*
-* [Header Comments]
-*
-* Begin:
-  A7 CD 92 6F EA 22 42 3D 95 5E D2 59 B6 03 E5 31
-  67 06 C2 AF 8A BB 32 98 00 15 89 AF C1 15 0C D9
-  ...additional hex data...
-* End 1032371916 1759126504
+plaintext, (v1, v2) = decrypt(data)
 ```
 
-The first 128 eight-byte blocks (1024 bytes) form the crypto table.  All subsequent blocks are ciphertext.  The two integers on the `End` line are CRC-based checksums used to verify decryption integrity.
+**Parameters:**
+- `data` (str) — Encrypted data as a string (LTspice format, PSpice format, or raw hex).
+- `is_ltspice_file` (bool, optional) — Whether the data is in LTspice format.  Auto-detected if `None`.
 
-### Binary File Format
+**Returns:** `(plaintext, (v1, v2))` — The decrypted text and a tuple of format-specific verification values (see `decrypt_stream` above).
 
-LTspice encrypted files in this format are binary files identified by a 20-byte signature (`\r\n<Binary File>\r\n\r\n\x1a`).  They use a two-layer XOR stream cipher unrelated to the DES-based scheme.  The file header contains two 32-bit keys used to derive a substitution table index and step value for decryption.
+### Lower-level APIs
 
-## Specification
+The following classes are exported for direct use:
 
-For detailed technical descriptions of the encryption schemes, see:
+- `LTspiceFileParser` — Text-based DES format parser
+- `BinaryFileParser` — Binary File format parser
+- `PSpiceFileParser` — PSpice format parser (modes 0–5)
+- `CryptoState` — LTspice DES key derivation and per-block decryption
+- `LTspiceDES` — LTspice custom DES variant
+- `PSpiceDES` — PSpice custom DES variant
 
-- [SPECIFICATIONS/ltspice.md](SPECIFICATIONS/ltspice.md) — LTspice encryption: key derivation, pre-DES stream cipher layer, all deviations from standard DES, and the Binary File XOR stream cipher.
-- [SPECIFICATIONS/pspice.md](SPECIFICATIONS/pspice.md) — PSpice encryption: six modes (0–5), custom DES variant, AES-256 ECB, key derivation, and mode 4 brute-force key recovery.
-- [SPECIFICATIONS/pspice-attack-summary.md](SPECIFICATIONS/pspice-attack-summary.md) — Analysis of the PSpice mode 4 key derivation bug that reduces the effective keyspace from 2^256 to 2^32.
+## Supported Formats
+
+### LTspice Text-Based DES
+
+Encrypted files contain hex-encoded ciphertext delimited by `* Begin:` and `* End <v1> <v2>` comment markers.  The first 1024 bytes form a crypto table used for key derivation and as an XOR keystream source.  All subsequent blocks are decrypted with a custom DES variant that uses non-standard S-boxes and permutation tables, preceded by an XOR stream cipher layer keyed from the same table.
+
+### LTspice Binary File
+
+Binary files are identified by a 20-byte signature (`\r\n<Binary File>\r\n\r\n\x1a`).  Decrypted with a two-layer XOR stream cipher using two 32-bit keys from the file header and a 2593-byte substitution table with prime-based stepping.
+
+### PSpice Modes 0–5
+
+Encrypted regions are delimited by `$CDNENCSTART` / `$CDNENCFINISH` markers within otherwise plaintext files.  Six encryption modes exist:
+
+| Mode | Cipher | Key Source |
+|------|--------|------------|
+| 0 | Custom DES | Hardcoded |
+| 1–2 | Custom DES | Hardcoded + version |
+| 3 | AES-256 ECB | Hardcoded + version |
+| 4 | AES-256 ECB | Hardcoded XOR user key + version |
+| 5 | AES-256 ECB | Hardcoded + version |
+
+Modes 0–3 and 5 use key material derived entirely from constants in the PSpice binary.  Mode 4 incorporates a user-supplied key, but a bug in the key derivation passes only the short key to the AES engine instead of the extended key, leaving just 4 bytes unknown and reducing the effective keyspace to 2^32.  This makes the key recoverable by brute force.
+
+## Specifications
+
+Detailed technical documentation of the encryption schemes:
+
+- [SPECIFICATIONS/ltspice.md](SPECIFICATIONS/ltspice.md) — LTspice encryption: key derivation, DES variant, stream cipher, and Binary File format
+- [SPECIFICATIONS/pspice.md](SPECIFICATIONS/pspice.md) — PSpice encryption: modes 0–5, custom DES, AES-256 ECB, and key derivation
+- [SPECIFICATIONS/pspice-attack-summary.md](SPECIFICATIONS/pspice-attack-summary.md) — PSpice Mode 4 key derivation bug and brute-force key recovery
 
 ## Purpose and Legal Basis
 
@@ -196,4 +206,4 @@ PSpice® is a registered trademark of Cadence Design Systems, Inc.
 
 This project is licensed under the [GNU Affero General Public License v3.0 or later](LICENSES/AGPL-3.0-or-later.txt).
 
-Copyright (c) 2026 Joe T. Sylve, Ph.D.
+Copyright (c) 2025-2026 Joe T. Sylve, Ph.D.

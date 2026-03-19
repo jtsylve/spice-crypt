@@ -16,10 +16,10 @@ When a user provides a key via the `CDN_PSPICE_ENCKEYS` CSV file, user key bytes
 `PSpiceAESEncoder_setKey` receives only the short key (`g_desKey`), not the extended key (`g_aesKey`).  The 32-byte AES-256 key is constructed by zero-padding this null-terminated string:
 
 ```
-Byte  0--3:  XOR("8gM2", user_key[0:4])   -- unknown (4 bytes)
-Byte  4--7:  "1002"                       -- version suffix (atoi(version_string) + 999)
+Byte  0–3:  XOR("8gM2", user_key[0:4])   -- unknown (4 bytes)
+Byte  4–7:  "1002"                       -- version suffix (atoi(version_string) + 999)
 Byte  8:    0x00 (null terminator)       -- known
-Byte  9--31: 0x00 (zero padding)          -- known
+Byte  9–31: 0x00 (zero padding)          -- known
 ```
 
 `EncryptionContext_init` (`0x140008540`) calls `initEncryptionKeys` to derive both keys, then passes only `g_desKey` to the cipher engine via a vtable call at `0x14000871F`:
